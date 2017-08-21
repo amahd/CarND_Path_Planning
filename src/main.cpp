@@ -8,6 +8,13 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
+
+
+#define LC 2 	//lane centre
+#define LW 4   //lane width
+
+#define DISTINC 0.5
 
 using namespace std;
 
@@ -235,18 +242,143 @@ int main() {
 
           	json msgJson;
 
+        	unsigned int pp_size = previous_path_x.size();   //previous path size
+
+          	printf("end_point_s %d   car lane %d   prev path %d \n ",end_path_s, car_d ,previous_path_x.size() );
+
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
+          	vector<double> x_pts;
+          	vector<double> y_pts;
+
+          	double x_ref = car_x;
+			double y_ref = car_y;
+			double yaw_ref = deg2rad(car_yaw);
+
+
+          	if (pp_size < 2) { // simulation just started
+          		x_pts.push_back(car_x - cos(car_yaw));
+
+          		x_pts.push_back(car_x);
+
+          		y_pts.push_back(car_y - sin(car_yaw));
+
+          		y_pts.push_back(car_y);
 
 
 
+          	}
+          	else {  // car has a previous path
+
+          		x_ref = previous_path_x[pp_size - 1];
+          		y_ref = previous_path_y[pp_size - 1];
+
+          		double x_ref_prev = previous_path_x[pp_size - 2];
+          		double y_ref_prev = previous_path_y[pp_size - 2];
+
+          		x_pts.push_back(x_ref_prev);
+          		x_pts.push_back(x_ref);
+
+          		y_pts.push_back(y_ref_prev);
+          		y_pts.push_back(y_ref);
+
+          		yaw_ref = atan2(y_ref - y_ref_prev,x_ref-x_ref_prev);
+
+
+          	}
+          	int lane = 1;
+
+          	tk::spline s;  //declare spline
+          	vector<double> wp0 = getXY(car_s + 60,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+			vector<double> wp1 = getXY(car_s + 80,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+			vector<double> wp2 = getXY(car_s + 100,(LC + LW*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+
+
+			x_pts.push_back(wp0[0]);
+			x_pts.push_back(wp1[0]);
+			x_pts.push_back(wp2[0]);
+
+			y_pts.push_back(wp0[1]);
+			y_pts.push_back(wp1[1]);
+			y_pts.push_back(wp2[1]);
+
+
+			// change to car coordinates
+
+
+			//cout<<endl<<endl<<"       before breaking  "<< y_pts.size()<<""<< x_pts.size()<<endl;
+
+			for (int k = 0; k < y_pts.size(); ++k){
+
+				double x_origin = x_pts[k] - x_ref;
+				double y_origin = y_pts[k] - y_ref;
+
+				x_pts[k] = x_origin * cos(-yaw_ref) - y_origin*sin(-yaw_ref);
+				y_pts[k] = x_origin * sin( -yaw_ref) + y_origin*cos(-yaw_ref);
+
+			}
+
+			s.set_points(x_pts,y_pts); // spline for 5 points
+			for(int k = 0; k < previous_path_x.size(); ++k){
+
+				next_x_vals.push_back(previous_path_x[k]);
+				next_y_vals.push_back(previous_path_y[k]);
+
+			}
+
+			double x_horizon = 30.0;
+			double y_horizon = s(x_horizon);
+			double path = sqrt((x_horizon*x_horizon)  + (y_horizon*y_horizon));
+
+			double x_addon = 0;
+
+
+			for(int k = 1; k < 50 - pp_size; ++k){
+
+				double N = 2.24* path / (0.02 * 30);
+				double x_point = x_addon + (x_horizon/N);
+				double y_point = s(x_point);
+
+				x_addon = x_point ;
+
+				double x_glo_cors = x_point *cos(yaw_ref) - y_point*sin(yaw_ref);
+				double y_glo_cors = x_point *sin(yaw_ref) + y_point*cos(yaw_ref);
+
+				x_glo_cors += x_ref;
+				y_glo_cors += y_ref;
+
+				next_x_vals.push_back(x_glo_cors);
+				next_y_vals.push_back(y_glo_cors);
+
+			}
+			cout<<"     Final  path size  "<< next_x_vals.size()<<" "<< next_y_vals.size()<<endl;
 
 
 
+   /*       	const double dist_inc = DISTINC;
+          	next_x_vals.clear();
+          	next_y_vals.clear();
+
+          	 for(int i = 0; i < 50; i++)
+          	    {
+
+          		 double next_s = car_s+(dist_inc*(i+1));
+          		 double next_d = car_d;
+
+          		 auto xy = getXY(next_s,next_d,map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          		 next_x_vals.push_back(xy[0]);
+				 next_y_vals.push_back(xy[1]);
+
+          		 //next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
+				 //next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
+          	    }
+
+*/
+        //  	cout<<"     Final  path size  "<< next_x_vals.size()<<" "<< next_y_vals.size()<<endl;
 
           	// Finished
 
