@@ -29,16 +29,17 @@
 
 #define LANE_HORIZON  30.0  // Check how far ahead inside your lane
 
+#define LANE_OFF 10
 
 #define PATH_POINTS 50    // Total points in the future path
 
 
-#define REF_VEL 45.0
+#define REF_VEL 49.0
 
 #define MAXCOST 10000
 
 
-
+#define THRESH 0.03
 
 
 
