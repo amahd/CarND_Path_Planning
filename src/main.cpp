@@ -81,7 +81,7 @@ vector<double>  check_fwd_behaviour(vector<vector<double >> sensor_fusion, int l
 						}
 
 				nc_id=k;
-				//cout<<nc[0]<<nc_id<<sensor_fusion[k][0]<<endl;
+
 				}
 		 	 } // end of horizon check
 		} // end of loop for cars in same lane
@@ -116,20 +116,19 @@ vector<double>  check_bck_behaviour(vector<vector<double >> sensor_fusion, int l
 				if (dist_ahead[0] == LRGENUM) { // only first time
 
 					dist_ahead[0] = own_s - nc_next_s;
-					cout<<""<<"Chnaged distance first time "<<dist_ahead[0] <<endl;
+
 					id_ahead[0] = nc[0];
 					}
 				else {
 					dist_ahead[1] = own_s - nc_next_s ;
-					cout<<""<<"Chnaged distance first time "<<dist_ahead[1] <<endl;
+
 					id_ahead[1] = nc[0];
 					// Check for the closest car, if multiple cars in range
 					if ( MIN(dist_ahead[1],dist_ahead[0]) == dist_ahead[1]){
 						dist_ahead[0] = dist_ahead[1];
 						id_ahead[0] = id_ahead[1];
 						}
-					//cout<<""<<"Minmi "<<dist_ahead[0] <<endl;
-				    }
+					}
 		 	 } // end of horizon check
 		} // end of loop for cars in same lane
 	} // end of for loop for checking all cars
@@ -153,34 +152,32 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
  // only support single lane changes and not double from extreme left or right
 	if (lane == 0){  // if car is originally in left most lane, check for right lane
 		new_lane = lane +1;
+
 		auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane,  params, pp_size );
-		cost1 =calc_cost(fwd_1[2]);
-		cout<<""<<"distance ahead in new right lane path "<<fwd_1[2] <<endl;
+		cost1 =calc_cost(fwd_1[2]);  // get fwd distance cost
+
 		auto bck_1 = check_bck_behaviour(sensor_fusion, new_lane, params, pp_size );
-		cost1 +=calc_cost(bck_1[2]);
-		cout<<""<<"distance behind the new right  path "<<bck_1[2] <<endl;
+		cost1 +=calc_cost(bck_1[2]);  // add backward distance cost
+
 
 	}
 
 	 if (lane == 1){ // if car is in middle, check for both lanes
 			auto fwd_1 = check_fwd_behaviour(sensor_fusion, lane + 1,  params, pp_size );
 			cost1 =calc_cost(fwd_1[2]);
-			cout<<""<<"distance ahead in new right lane path "<<fwd_1[2] <<endl;
 			auto bck_1 = check_bck_behaviour(sensor_fusion, lane + 1, params, pp_size );
 			cost1 +=calc_cost(bck_1[2]);
-			cout<<""<<"distance behind the new right path "<<bck_1[2] <<endl;
 
 			auto fwd_2 = check_fwd_behaviour(sensor_fusion, lane - 1,  params, pp_size );
 			cost2 =calc_cost(fwd_2[2]);
-			cout<<""<<"distance behind the new left path "<<fwd_2[2] <<endl;
+
 			auto bck_2 = check_bck_behaviour(sensor_fusion, lane - 1, params, pp_size );
 			cost2 +=calc_cost(bck_2[2]);
-			cout<<""<<"distance behind the new left path "<<bck_2[2] <<endl;
 			if (cost1 <= cost2)
 				new_lane = lane + 1;
 			else {
 				new_lane = lane - 1;
-				cost1 =cost2;
+				cost1 = cost2;
 			     }
 	}
 
@@ -188,10 +185,9 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
 			new_lane = lane - 1;
 			auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane ,  params, pp_size );
 			cost1 =calc_cost(fwd_1[2]);
-			cout<<""<<"distance ahead the new left path "<<fwd_1[2] <<endl;
+
 			auto bck_1 = check_bck_behaviour(sensor_fusion, new_lane , params, pp_size );
 			cost1 +=calc_cost(bck_1[2]);
-			cout<<""<<"distance behind the new left path "<<bck_1[2] <<endl;
 
 		}
 
@@ -463,9 +459,6 @@ int main() {
           	double end_path_d = j[1]["end_path_d"];
 
           	vector<double> params = {car_x,car_y,car_s,car_d,car_yaw,car_speed,end_path_s, end_path_d };
-          	//cout<<" car_d "<<car_d <<" car_s "<<car_s<<" car_speed "<<car_speed<<" end_path_s "<<end_path_s<<endl<<endl;
-
-
 
 
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
@@ -501,16 +494,14 @@ int main() {
 
 			if (0 == result[0]){  // car ahead, react by changing lane and/or reduce speed
 				// check costs for moving to appropriate lane
-				auto lane_cost= check_costs(sensor_fusion, lane, params,pp_size);
+				auto lane_cost= check_costs(sensor_fusion, lane, params, pp_size);
 				// check costs for staying in the same lane
-				auto cost1 = calc_cost(result[2]);
-				cout<<""<<"distance in straight path "<<result[2] <<endl;
-				cout<< "lane change cost "<< lane_cost[1]<< "staying in lane cost" <<cost1<<endl<<endl;
+				auto cost1 = calc_cost(double(result[2]));
+
 				if (cost1 > lane_cost[1]){
-					cout<<"doing lane change, new"<<lane_cost[0]<< " old "<<lane<< endl<<endl;
 					lane = lane_cost[0];   // lane change
 				}
-				ref_vel -= 2.0/2.24;  // reduce velocity when changing lane
+				ref_vel -= 2.0/2.24;  // reduce velocity as theres a car ahead or lane changedd
 
 			}
 			else if (ref_vel < REF_VEL){  // keep driving straight and increase speed
