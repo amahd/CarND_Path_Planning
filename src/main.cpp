@@ -29,31 +29,7 @@ double rad2deg(double x) { return x * 180 / pi(); }
 
 
 
-vector<double>  check_currentlane_behaviour(vector<vector<double >> sensor_fusion, int lane, vector<double> params,unsigned int pp_size ){
-//vector<double> params = {car_x, car_y, car_s, car_d, car_yaw, car_speed, end_path_s, end_path_d }; total 8
-	double own_s;
-	bool status = true;
-	for (unsigned int k = 0; k < sensor_fusion.size();++k){
-		// [ id, x, y, vx, vy, s, d]
-
-		vector<double> nc = sensor_fusion[k];
-
-		if (nc[6] > (LC+LW*lane - 2) && (nc[6] < (LC+LW*lane +2) ) ){   // if its in the same lane
-
-			double nc_speed = sqrt(nc[3] *nc[3] + nc[4]*nc[4]);  // next car's speed
-			double nc_next_s = nc[5] + (pp_size +1)*SIM_TICK*nc_speed;   //cars_next location
-			 own_s = (pp_size > 0)? params[6]: params[2] ;
-
-			if( ( nc_next_s > own_s) && ((nc_next_s - own_s) <  LANE_HORIZON ))
-				status =false;
-				break;
-		 	 }
-	}
-
-	return {status,own_s} ;   // false if car ahead, otherwise true
-
-}
-
+// obtain lane ID given cars d coorinate
 int getlane (double value)
 {
 	int clane = -1;
@@ -68,8 +44,7 @@ int getlane (double value)
 }
 
 
-
-
+// Check for cars ahead in the same lane
 
 vector<double>  check_fwd_behaviour(vector<vector<double >> sensor_fusion, int lane, vector<double> params,unsigned int pp_size ){
 //vector<double> params = {car_x, car_y, car_s, car_d, car_yaw, car_speed, end_path_s, end_path_d }; total 8
@@ -99,14 +74,14 @@ vector<double>  check_fwd_behaviour(vector<vector<double >> sensor_fusion, int l
 					dist_ahead[1] = nc_next_s - own_s ;
 					id_ahead[1] = nc[0];
 
-
+					// Check for the closest car, if multiple cars in range
 					if ( MIN(dist_ahead[1],dist_ahead[0]) == dist_ahead[1]){
 						dist_ahead[0] = dist_ahead[1];
 						id_ahead[0] = id_ahead[1];
 						}
 
 				nc_id=k;
-				cout<<nc[0]<<nc_id<<sensor_fusion[k][0]<<endl;
+				//cout<<nc[0]<<nc_id<<sensor_fusion[k][0]<<endl;
 				}
 		 	 } // end of horizon check
 		} // end of loop for cars in same lane
@@ -117,7 +92,7 @@ vector<double>  check_fwd_behaviour(vector<vector<double >> sensor_fusion, int l
 }
 
 
-
+// check for cars behind in the same lane
 vector<double>  check_bck_behaviour(vector<vector<double >> sensor_fusion, int lane, vector<double> params,unsigned int pp_size ){
 //vector<double> params = {car_x, car_y, car_s, car_d, car_yaw, car_speed, end_path_s, end_path_d }; total 8
 
@@ -148,11 +123,12 @@ vector<double>  check_bck_behaviour(vector<vector<double >> sensor_fusion, int l
 					dist_ahead[1] = own_s - nc_next_s ;
 					cout<<""<<"Chnaged distance first time "<<dist_ahead[1] <<endl;
 					id_ahead[1] = nc[0];
+					// Check for the closest car, if multiple cars in range
 					if ( MIN(dist_ahead[1],dist_ahead[0]) == dist_ahead[1]){
 						dist_ahead[0] = dist_ahead[1];
 						id_ahead[0] = id_ahead[1];
 						}
-					cout<<""<<"Minmi "<<dist_ahead[0] <<endl;
+					//cout<<""<<"Minmi "<<dist_ahead[0] <<endl;
 				    }
 		 	 } // end of horizon check
 		} // end of loop for cars in same lane
@@ -162,18 +138,20 @@ vector<double>  check_bck_behaviour(vector<vector<double >> sensor_fusion, int l
 
 }
 
-
+// calculate cost of path change
 double calc_cost (double inp){
 	double val = 1 - exp(-1/inp);
 	return val;
 }
 
+
+// evaluate the cost of changing lanes from current lane
 vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vector<double> params,unsigned int pp_size ){
 
 
-	double new_lane = 0, cost1=10000,cost2 = 10000;
+	double new_lane = 0, cost1= MAXCOST , cost2 = MAXCOST;
  // only support single lane changes and not double from extreme left or right
-	if (lane == 0){
+	if (lane == 0){  // if car is originally in left most lane, check for right lane
 		new_lane = lane +1;
 		auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane,  params, pp_size );
 		cost1 =calc_cost(fwd_1[2]);
@@ -184,7 +162,7 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
 
 	}
 
-	 if (lane == 1){
+	 if (lane == 1){ // if car is in middle, check for both lanes
 			auto fwd_1 = check_fwd_behaviour(sensor_fusion, lane + 1,  params, pp_size );
 			cost1 =calc_cost(fwd_1[2]);
 			cout<<""<<"distance ahead in new right lane path "<<fwd_1[2] <<endl;
@@ -206,7 +184,7 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
 			     }
 	}
 
-	if (lane == 2){
+	if (lane == 2){ // car on the right, check for middle lane
 			new_lane = lane - 1;
 			auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane ,  params, pp_size );
 			cost1 =calc_cost(fwd_1[2]);
@@ -237,7 +215,7 @@ void global2car( vector<double> &ptx , vector<double> &pty, double x, double y, 
 		}
 }
 
-
+// get next path points based upon spline
 void get_next_pts(vector<double> &x_pts, vector<double>& y_pts, vector<double> & next_x, vector<double> &next_y,\
 		tk::spline s, unsigned int pp_size, double x, double y, double yaw, double & velocity)
 {
@@ -500,13 +478,15 @@ int main() {
         	int lane = getlane(car_d);
         	vector<double> next_x_vals;
           	vector<double> next_y_vals;
+
+          	// put previous path points in next points' vector
           	for(int k = 0; k < previous_path_x.size(); ++k){
 				next_x_vals.push_back(previous_path_x[k]);
 				next_y_vals.push_back(previous_path_y[k]);
 
 			}
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+          	//  define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
           	vector<double> x_pts;
           	vector<double> y_pts;
@@ -516,53 +496,28 @@ int main() {
 			double yaw_ref = deg2rad(car_yaw);
 
 
-
-			//prepare_trajectory(x_pts,y_pts, x_ref, y_ref, yaw_ref,map_waypoints_s,map_waypoints_x,map_waypoints_y,pp_size,lane);
-
-
+			// Check if keep going straight is fine
 			auto result = check_fwd_behaviour(sensor_fusion, lane, params,pp_size);
 
-			if (0 == result[0]){
+			if (0 == result[0]){  // car ahead, react by changing lane and/or reduce speed
+				// check costs for moving to appropriate lane
 				auto lane_cost= check_costs(sensor_fusion, lane, params,pp_size);
-
+				// check costs for staying in the same lane
 				auto cost1 = calc_cost(result[2]);
 				cout<<""<<"distance in straight path "<<result[2] <<endl;
 				cout<< "lane change cost "<< lane_cost[1]<< "staying in lane cost" <<cost1<<endl<<endl;
 				if (cost1 > lane_cost[1]){
 					cout<<"doing lane change, new"<<lane_cost[0]<< " old "<<lane<< endl<<endl;
-					lane = lane_cost[0];
+					lane = lane_cost[0];   // lane change
 				}
-				ref_vel -= 2.0/2.24;
+				ref_vel -= 2.0/2.24;  // reduce velocity when changing lane
 
 			}
-			else if (ref_vel < REF_VEL){
+			else if (ref_vel < REF_VEL){  // keep driving straight and increase speed
 				ref_vel += 2.0/2.24;
-					if (ref_vel >  REF_VEL)
+					if (ref_vel >  REF_VEL)	// safety check on max speed
 					ref_vel = REF_VEL;
 				}
-
-//			cout<< "car ahead has is ID" << result[0]<< " distance "<<result[1]<<" ID "<<sensor_fusion[result[2]][0]<<endl;
-			//check_currentlane_behaviour(sensor_fusion, lane, params,pp_size );
-
-			/*for (unsigned int k = 0; k < sensor_fusion.size();++k){
-				// [ id, x, y, vx, vy, s, d]
-
-				vector<double> nc = sensor_fusion[k];
-
-				if (nc[6] > (LC+LW*lane - 2) && (nc[6] < (LC+LW*lane +2) ) ){   // if its in the same lane
-
-					double nc_speed = sqrt(nc[3] *nc[3] + nc[4]*nc[4]);  // next car's speed
-					double nc_next_s = nc[5] + (pp_size +1)*SIM_TICK*nc_speed;   //cars_next location
-					double own_s = (pp_size > 0)? end_path_s: car_s ;
-
-					if( ( nc_next_s > own_s) && ((nc_next_s - own_s) <  LANE_HORIZON ))
-						too_close = 1;
-						break;
-				 	 }
-			}*/
-
-
-
 
 			// get future trajectory
           	if (pp_size < 2) { // simulation just started
@@ -595,7 +550,6 @@ int main() {
           	}
 
 
-
           	vector<double> wp0 = getXY(car_s + 40,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
 			vector<double> wp1 = getXY(car_s + 70,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
 			vector<double> wp2 = getXY(car_s + 90,(LC + LW*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
@@ -615,7 +569,7 @@ int main() {
 
 			tk::spline s;  //declare spline
 			s.set_points(x_pts,y_pts); // spline for 5 points
-
+			// get future points, code based on Project Q&A video
 			get_next_pts(x_pts,y_pts,next_x_vals, next_y_vals, s, pp_size,x_ref,y_ref, yaw_ref,ref_vel);
 
 
