@@ -46,7 +46,7 @@ int getlane (double value)
 
 // Check for cars ahead in the same lane
 
-vector<double>  check_fwd_behaviour(vector<vector<double >> sensor_fusion, int lane, vector<double> params,unsigned int pp_size ){
+vector<double>  check_fwd_behaviour(vector<vector<double >> sensor_fusion, int lane, vector<double> params,unsigned int pp_size, unsigned int off ){
 //vector<double> params = {car_x, car_y, car_s, car_d, car_yaw, car_speed, end_path_s, end_path_d }; total 8
 
 	double status = 1;
@@ -64,7 +64,7 @@ vector<double>  check_fwd_behaviour(vector<vector<double >> sensor_fusion, int l
 			double nc_next_s = nc[5] + (pp_size +1)*SIM_TICK*nc_speed;   //cars_next location
 			double own_s = (pp_size > 0)? params[6]: params[2] ;
 
-			if( ( nc_next_s > own_s) && ((nc_next_s - own_s) <  LANE_HORIZON )){  // Find the closest car in horizon
+			if( ( nc_next_s > own_s) && ((nc_next_s - own_s) <  LANE_HORIZON + off )){  // Find the closest car in horizon, off value to avoid unnecessary overtaking
 				status = 0;
 				if (dist_ahead[0] == LRGENUM) { // only first time
 					dist_ahead[0] = nc_next_s - own_s;
@@ -98,7 +98,7 @@ vector<double>  check_bck_behaviour(vector<vector<double >> sensor_fusion, int l
 
 	double status =1;
 	int clane = getlane(params[3]); // get actual car lane
-	vector<double> id_ahead = {0,0}, dist_ahead= {LRGENUM,LRGENUM};
+	vector<double> id_ahead = {0,0}, dist_ahead= {LRGENUM,LRGENUM}, speed_bck= {LRGENUM,LRGENUM};
 
 	for (unsigned int k = 0; k < sensor_fusion.size();++k){
 		// [ id, x, y, vx, vy, s, d]
@@ -116,24 +116,25 @@ vector<double>  check_bck_behaviour(vector<vector<double >> sensor_fusion, int l
 				if (dist_ahead[0] == LRGENUM) { // only first time
 
 					dist_ahead[0] = own_s - nc_next_s;
-
+					speed_bck[0] = nc_speed;
 					id_ahead[0] = nc[0];
 					}
 				else {
 					dist_ahead[1] = own_s - nc_next_s ;
-
+					speed_bck[1] = nc_speed;
 					id_ahead[1] = nc[0];
 					// Check for the closest car, if multiple cars in range
 					if ( MIN(dist_ahead[1],dist_ahead[0]) == dist_ahead[1]){
 						dist_ahead[0] = dist_ahead[1];
 						id_ahead[0] = id_ahead[1];
+						speed_bck[0] = speed_bck[1];
 						}
 					}
 		 	 } // end of horizon check
 		} // end of loop for cars in same lane
 	} // end of for loop for checking all cars
 
-	return {status, id_ahead[0],dist_ahead[0]} ;   // false if car ahead, otherwise true
+	return {status, id_ahead[0],dist_ahead[0], speed_bck[0]} ;   // false if car ahead, otherwise true
 
 }
 
@@ -153,7 +154,7 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
 	if (lane == 0){  // if car is originally in left most lane, check only for right lane
 		new_lane = lane +1;
 
-		auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane,  params, pp_size );
+		auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane,  params, pp_size, LANE_OFF );
 		cost1 =calc_cost(fwd_1[2]);  // get fwd distance cost
 
 		auto bck_1 = check_bck_behaviour(sensor_fusion, new_lane, params, pp_size );
@@ -163,12 +164,12 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
 	}
 
 	 if (lane == 1){ // if car is in middle, check for both lanes
-			auto fwd_1 = check_fwd_behaviour(sensor_fusion, lane + 1,  params, pp_size );
+			auto fwd_1 = check_fwd_behaviour(sensor_fusion, lane + 1,  params, pp_size, LANE_OFF );
 			cost1 =calc_cost(fwd_1[2]);
 			auto bck_1 = check_bck_behaviour(sensor_fusion, lane + 1, params, pp_size );
 			cost1 +=calc_cost(bck_1[2]);
 
-			auto fwd_2 = check_fwd_behaviour(sensor_fusion, lane - 1,  params, pp_size );
+			auto fwd_2 = check_fwd_behaviour(sensor_fusion, lane - 1,  params, pp_size, LANE_OFF );
 			cost2 =calc_cost(fwd_2[2]);
 
 			auto bck_2 = check_bck_behaviour(sensor_fusion, lane - 1, params, pp_size );
@@ -183,7 +184,7 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
 
 	if (lane == 2){ // car on the right, check for middle lane
 			new_lane = lane - 1;
-			auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane ,  params, pp_size );
+			auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane ,  params, pp_size, LANE_OFF );
 			cost1 =calc_cost(fwd_1[2]);
 
 			auto bck_1 = check_bck_behaviour(sensor_fusion, new_lane , params, pp_size );
@@ -490,7 +491,7 @@ int main() {
 
 
 			// Check if keep going straight is fine
-			auto result = check_fwd_behaviour(sensor_fusion, lane, params,pp_size);
+			auto result = check_fwd_behaviour(sensor_fusion, lane, params,pp_size,0);
 
 			if (0 == result[0]){  // car ahead, react by changing lane and/or reduce speed
 				// check costs for moving to appropriate lane
@@ -498,9 +499,10 @@ int main() {
 				// check costs for staying in the same lane
 				auto cost1 = calc_cost(double(result[2]));
 
-				if (cost1 > lane_cost[1]){
+				if (   (cost1 > lane_cost[1])      && (abs(cost1 - lane_cost[1]) > THRESH)   ){
 					lane = lane_cost[0];   // lane change
-					ref_vel += 2.0/2.24;  // reduce velocity as theres a car ahead or lane changed
+
+					ref_vel += 2.0/2.24;
 				}
 				ref_vel -= 2.0/2.24;  // reduce velocity as theres a car ahead or lane changed
 
@@ -623,7 +625,7 @@ int main() {
 
 
 
-
+//cout<< cost1 <<"  "<<lane_cost[1] <<" "<<abs(cost1 - lane_cost[1])<<endl<<endl;
 
 
 
