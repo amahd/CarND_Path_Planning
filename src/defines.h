@@ -35,7 +35,7 @@
 
 #define REF_VEL 45.0
 
-
+#define MAXCOST 10000
 
 
 

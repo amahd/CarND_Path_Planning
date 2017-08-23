@@ -149,8 +149,8 @@ vector<double> check_costs(vector<vector<double>> sensor_fusion, int lane, vecto
 
 
 	double new_lane = 0, cost1= MAXCOST , cost2 = MAXCOST;
- // only support single lane changes and not double from extreme left or right
-	if (lane == 0){  // if car is originally in left most lane, check for right lane
+ // only support single lane changes and not double lane switch from extreme left or right
+	if (lane == 0){  // if car is originally in left most lane, check only for right lane
 		new_lane = lane +1;
 
 		auto fwd_1 = check_fwd_behaviour(sensor_fusion, new_lane,  params, pp_size );
