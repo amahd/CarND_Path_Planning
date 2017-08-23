@@ -500,8 +500,9 @@ int main() {
 
 				if (cost1 > lane_cost[1]){
 					lane = lane_cost[0];   // lane change
+					ref_vel += 2.0/2.24;  // reduce velocity as theres a car ahead or lane changed
 				}
-				ref_vel -= 2.0/2.24;  // reduce velocity as theres a car ahead or lane changedd
+				ref_vel -= 2.0/2.24;  // reduce velocity as theres a car ahead or lane changed
 
 			}
 			else if (ref_vel < REF_VEL){  // keep driving straight and increase speed
@@ -541,8 +542,8 @@ int main() {
           	}
 
 
-          	vector<double> wp0 = getXY(car_s + 40,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
-			vector<double> wp1 = getXY(car_s + 70,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          	vector<double> wp0 = getXY(car_s + 60,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+			vector<double> wp1 = getXY(car_s + 75,(LC + LW* lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
 			vector<double> wp2 = getXY(car_s + 90,(LC + LW*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
 
 
